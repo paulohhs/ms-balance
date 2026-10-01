@@ -1,4 +1,4 @@
-package getbalance
+package get_balance
 
 import (
 	"testing"

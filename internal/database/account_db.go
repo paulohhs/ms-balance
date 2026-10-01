@@ -7,11 +7,17 @@ import (
 	"github.com/paulohhs/ms-balance/internal/entity"
 )
 
-type AccountDB struct {
-	DB *sql.DB
+// DBTX é satisfeita por *sql.DB e *sql.Tx, permitindo que o AccountDB
+// rode dentro ou fora de uma transação da Unit of Work.
+type DBTX interface {
+	Prepare(query string) (*sql.Stmt, error)
 }
 
-func NewAccountDB(db *sql.DB) *AccountDB {
+type AccountDB struct {
+	DB DBTX
+}
+
+func NewAccountDB(db DBTX) *AccountDB {
 	return &AccountDB{DB: db}
 }
 
