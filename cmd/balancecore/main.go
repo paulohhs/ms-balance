@@ -3,16 +3,22 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 
+	ckafka "github.com/confluentinc/confluent-kafka-go/kafka"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/paulohhs/ms-balance/internal/database"
+	"github.com/paulohhs/ms-balance/internal/event"
+	"github.com/paulohhs/ms-balance/internal/event/handler"
 	"github.com/paulohhs/ms-balance/internal/usecase/get_balance"
 	"github.com/paulohhs/ms-balance/internal/usecase/update_balance"
 	"github.com/paulohhs/ms-balance/internal/web"
 	"github.com/paulohhs/ms-balance/internal/web/webserver"
+	"github.com/paulohhs/ms-balance/pkg/events"
+	"github.com/paulohhs/ms-balance/pkg/kafka"
 	"github.com/paulohhs/ms-balance/pkg/uow"
 )
 
@@ -40,11 +46,31 @@ func main() {
 	ctx := context.Background()
 	unitOfWork := uow.NewUow(ctx, db)
 	unitOfWork.Register("AccountDB", func(tx *sql.Tx) interface{} {
-		return database.NewAccountDB(tx) // tx, não db: as queries rodam dentro da transação
+		return database.NewAccountDB(tx) // tx, as queries rodam dentro da transação
 	})
-
 	updateBalanceUseCase := update_balance.NewUpdateBalanceUseCase(unitOfWork)
-	_ = updateBalanceUseCase
+
+	eventDispatcher := events.NewEventDispatcher()
+	eventDispatcher.Register("BalanceUpdated", handler.NewBalanceUpdatedKafkaHandler(updateBalanceUseCase))
+
+	configMap := ckafka.ConfigMap{
+		"bootstrap.servers": getEnv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+		"group.id":          "balances",
+		"auto.offset.reset": "earliest",
+	}
+	consumer := kafka.NewConsumer(&configMap, []string{"balances"})
+	msgChan := make(chan *ckafka.Message)
+	go consumer.Consume(msgChan)
+	go func() {
+		for msg := range msgChan {
+			balanceUpdated := event.NewBalanceUpdated()
+			if err := json.Unmarshal(msg.Value, balanceUpdated); err != nil {
+				fmt.Println("error decoding kafka message:", err)
+				continue
+			}
+			eventDispatcher.Dispatch(balanceUpdated)
+		}
+	}()
 
 	server := webserver.NewWebServer(":3003")
 	balanceHandler := web.NewWebBalanceHandler(*getBalanceUseCase)
