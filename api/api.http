@@ -1,10 +1,65 @@
+@walletHost = http://localhost:8080
 @balanceHost = http://localhost:3003
 
-### Saldo da conta do John (dado de teste)
-GET {{balanceHost}}/balances/8f2a3c4d-1111-4a5b-9c6d-000000000001
+@johnAccount = 8f2a3c4d-1111-4a5b-9c6d-000000000001
+@janeAccount = 8f2a3c4d-2222-4a5b-9c6d-000000000002
 
-### Saldo da conta da Jane (dado de teste)
-GET {{balanceHost}}/balances/8f2a3c4d-2222-4a5b-9c6d-000000000002
+############################################
+# 1) Balances (consumidor) — saldos dos seeds
+############################################
+
+### Saldo do John (seed: 1000)
+GET {{balanceHost}}/balances/{{johnAccount}}
+
+### Saldo da Jane (seed: 1000)
+GET {{balanceHost}}/balances/{{janeAccount}}
 
 ### Conta inexistente -> 404
 GET {{balanceHost}}/balances/conta-que-nao-existe
+
+############################################
+# 2) Wallet Core (produtor) — gera eventos
+############################################
+
+### Transferir 100 do John para a Jane (publica TransactionCreated e BalanceUpdated)
+POST {{walletHost}}/transactions
+Content-Type: application/json
+
+{
+    "account_id_from": "{{johnAccount}}",
+    "account_id_to": "{{janeAccount}}",
+    "amount": 100
+}
+
+############################################
+# 3) Balances — após a transação (consistência eventual)
+############################################
+
+### John deve ter 900
+GET {{balanceHost}}/balances/{{johnAccount}}
+
+### Jane deve ter 1100
+GET {{balanceHost}}/balances/{{janeAccount}}
+
+############################################
+# 4) Extras do Wallet Core
+############################################
+
+### Criar cliente
+POST {{walletHost}}/clients
+Content-Type: application/json
+
+{
+    "name": "Mary Doe",
+    "email": "mary@m.com"
+}
+
+### Criar conta (use o ID retornado acima).
+# Observação: a conta só aparece no Balances depois da PRIMEIRA transação dela,
+# porque o wallet só publica BalanceUpdated quando há transação.
+POST {{walletHost}}/accounts
+Content-Type: application/json
+
+{
+    "client_id": "COLE_AQUI_O_ID_DO_CLIENTE_CRIADO"
+}
