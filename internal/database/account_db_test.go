@@ -92,3 +92,15 @@ func (s *AccountDBTestSuite) TestUpdateBalance() {
 	s.NoError(err)
 	s.Equal(float64(750), accountDB.Balance)
 }
+
+func (s *AccountDBTestSuite) TestSaveInsideRolledBackTransaction() {
+	tx, err := s.db.Begin()
+	s.Require().NoError(err)
+
+	account, _ := entity.NewAccount("a1", 1000)
+	s.NoError(NewAccountDB(tx).Save(account))
+	s.NoError(tx.Rollback())
+
+	_, err = s.accountDB.FindByID("a1")
+	s.ErrorIs(err, entity.ErrAccountNotFound)
+}

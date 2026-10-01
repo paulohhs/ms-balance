@@ -1,10 +1,12 @@
-package updatebalance
+package update_balance
 
 import (
+	"context"
 	"errors"
 
 	"github.com/paulohhs/ms-balance/internal/entity"
 	"github.com/paulohhs/ms-balance/internal/gateway"
+	"github.com/paulohhs/ms-balance/pkg/uow"
 )
 
 type UpdateBalanceInputDTO struct {
@@ -15,22 +17,43 @@ type UpdateBalanceInputDTO struct {
 }
 
 type UpdateBalanceUseCase struct {
-	AccountGateway gateway.AccountGateway
+	Uow uow.UowInterface
 }
 
-func NewUpdateBalanceUseCase(accountGateway gateway.AccountGateway) *UpdateBalanceUseCase {
+func NewUpdateBalanceUseCase(uow uow.UowInterface) *UpdateBalanceUseCase {
 	return &UpdateBalanceUseCase{
-		AccountGateway: accountGateway,
+		Uow: uow,
 	}
 }
 
-func (uc *UpdateBalanceUseCase) Execute(input UpdateBalanceInputDTO) error {
-	err := saveBalance(uc.AccountGateway, input.AccountIDFrom, input.BalanceAccountIDFrom)
+func (uc *UpdateBalanceUseCase) Execute(ctx context.Context, input UpdateBalanceInputDTO) error {
+	return uc.Uow.Do(ctx, func(_ *uow.Uow) error {
+		accountRepository, err := uc.getAccountRepository(ctx)
+		if err != nil {
+			return err
+		}
+
+		err = saveBalance(accountRepository, input.AccountIDFrom, input.BalanceAccountIDFrom)
+		if err != nil {
+			return err
+		}
+
+		return saveBalance(accountRepository, input.AccountIDTo, input.BalanceAccountIDTo)
+	})
+}
+
+func (uc *UpdateBalanceUseCase) getAccountRepository(ctx context.Context) (gateway.AccountGateway, error) {
+	repo, err := uc.Uow.GetRepository(ctx, "AccountDB")
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return saveBalance(uc.AccountGateway, input.AccountIDTo, input.BalanceAccountIDTo)
+	accountRepository, ok := repo.(gateway.AccountGateway)
+	if !ok {
+		return nil, errors.New("AccountDB repository does not implement gateway.AccountGateway")
+	}
+
+	return accountRepository, nil
 }
 
 func saveBalance(accountRepository gateway.AccountGateway, accountID string, balance float64) error {
