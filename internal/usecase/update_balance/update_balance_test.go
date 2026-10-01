@@ -1,6 +1,7 @@
 package updatebalance
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -112,4 +113,17 @@ func TestUpdateBalanceUseCase_Execute_GatewayError(t *testing.T) {
 	assert.EqualError(t, err, "db down")
 	accountMock.AssertNotCalled(t, "Save", mock.Anything)
 	accountMock.AssertNotCalled(t, "UpdateBalance", mock.Anything)
+}
+
+func TestUpdateBalanceInputDTO_MatchesWalletPayload(t *testing.T) {
+	walletPayload := `{"account_id_from":"from","account_id_to":"to","balance_account_id_from":900,"balance_account_id_to":1100}`
+
+	var input UpdateBalanceInputDTO
+	err := json.Unmarshal([]byte(walletPayload), &input)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "from", input.AccountIDFrom)
+	assert.Equal(t, "to", input.AccountIDTo)
+	assert.Equal(t, float64(900), input.BalanceAccountIDFrom)
+	assert.Equal(t, float64(1100), input.BalanceAccountIDTo)
 }
