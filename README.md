@@ -1,4 +1,4 @@
-# ms-balance
+# MS-Balance
 
 Microsserviço **Balances** (consumidor Kafka) do desafio *EDA: Microsserviço de Balances* do curso FullCycle.
 Ele consome os eventos `BalanceUpdated` publicados pelo **Wallet Core** (`wallet-core/`, produtor)
