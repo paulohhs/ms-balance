@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -9,8 +10,10 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/paulohhs/ms-balance/internal/database"
 	"github.com/paulohhs/ms-balance/internal/usecase/get_balance"
+	"github.com/paulohhs/ms-balance/internal/usecase/update_balance"
 	"github.com/paulohhs/ms-balance/internal/web"
 	"github.com/paulohhs/ms-balance/internal/web/webserver"
+	"github.com/paulohhs/ms-balance/pkg/uow"
 )
 
 func main() {
@@ -33,6 +36,15 @@ func main() {
 
 	accountDb := database.NewAccountDB(db)
 	getBalanceUseCase := get_balance.NewGetBalanceUseCase(accountDb)
+
+	ctx := context.Background()
+	unitOfWork := uow.NewUow(ctx, db)
+	unitOfWork.Register("AccountDB", func(tx *sql.Tx) interface{} {
+		return database.NewAccountDB(tx) // tx, não db: as queries rodam dentro da transação
+	})
+
+	updateBalanceUseCase := update_balance.NewUpdateBalanceUseCase(unitOfWork)
+	_ = updateBalanceUseCase
 
 	server := webserver.NewWebServer(":3003")
 	balanceHandler := web.NewWebBalanceHandler(*getBalanceUseCase)
