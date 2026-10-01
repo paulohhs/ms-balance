@@ -1,0 +1,10 @@
+@balanceHost = http://localhost:3003
+
+### Saldo da conta do John (dado de teste)
+GET {{balanceHost}}/balances/8f2a3c4d-1111-4a5b-9c6d-000000000001
+
+### Saldo da conta da Jane (dado de teste)
+GET {{balanceHost}}/balances/8f2a3c4d-2222-4a5b-9c6d-000000000002
+
+### Conta inexistente -> 404
+GET {{balanceHost}}/balances/conta-que-nao-existe
